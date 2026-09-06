@@ -583,6 +583,16 @@ def fetch_account(alias, args, timezone_name):
         raise AccountError("auth_required", "Not signed in")
 
     token, account = access_token(alias, account)
+    if not account.get("username"):
+        status, me = http(
+            GRAPH + "/me?$select=displayName,userPrincipalName,mail",
+            headers={"Authorization": "Bearer " + token},
+        )
+        if status == 200:
+            account["username"] = me.get("mail") or me.get("userPrincipalName") or ""
+            account["displayName"] = me.get("displayName") or ""
+            write_json(state_path(alias), account)
+
     result = {
         "ok": True,
         "alias": alias,

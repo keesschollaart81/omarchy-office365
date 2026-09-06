@@ -318,6 +318,73 @@ group("launch commands", () => {
   check("an array command survives being read back",
         Model.commandArgv(["firefox", "{url}"]), ["firefox", "{url}"])
   check("nothing configured stays nothing", Model.commandArgv(""), [])
+
+  // Placeholders for routing to specific browser profiles
+  check("substitutes username placeholder",
+        Model.shellCommand(Model.openArgv(
+          ["microsoft-edge", "--profile-directory={username}", "{url}"],
+          "https://x", { username: "user@example.com" })),
+        "microsoft-edge --profile-directory=user@example.com https://x")
+  check("substitutes account/alias placeholder",
+        Model.shellCommand(Model.openArgv(
+          ["firefox", "-P", "{account}", "{url}"],
+          "https://x", { alias: "work" })),
+        "firefox -P work https://x")
+})
+
+group("login_hint targeting", () => {
+  const owa = "https://outlook.office365.com/owa/?ItemID=123&exvsurl=1&viewmodel=ReadMessageItem"
+  const mail = "https://outlook.office.com/mail/"
+  const hash = "https://outlook.office.com/mail/#/inbox"
+  const existing = "https://outlook.office.com/mail/?login_hint=already%40set.com"
+  const nonMs = "https://meet.google.com/abc-def-ghi"
+
+  check("appends login_hint to OWA item link",
+        Model.withLoginHint(owa, "user@example.com"),
+        owa + "&login_hint=user%40example.com")
+  check("appends login_hint to mail base link",
+        Model.withLoginHint(mail, "user@example.com"),
+        mail + "?login_hint=user%40example.com")
+  check("places login_hint before hash fragment",
+        Model.withLoginHint(hash, "user@example.com"),
+        "https://outlook.office.com/mail/?login_hint=user%40example.com#/inbox")
+  check("does not duplicate existing login_hint",
+        Model.withLoginHint(existing, "user@example.com"),
+        existing)
+  check("leaves non-Microsoft URLs untouched",
+        Model.withLoginHint(nonMs, "user@example.com"),
+        nonMs)
+  check("ignores empty username",
+        Model.withLoginHint(owa, ""),
+        owa)
+  check("ignores username without @",
+        Model.withLoginHint(owa, "Warren"),
+        owa)
+})
+
+group("mergeMail preserves username", () => {
+  const view = {
+    alias: "work",
+    short: "WRK",
+    color: "#fff",
+    username: "work@example.com",
+    write: true,
+    mail: [{
+      id: "m1",
+      subject: "Test",
+      from: "boss",
+      fromAddress: "boss@example.com",
+      received: "2026-09-06T10:00:00Z",
+      preview: "Hello",
+      webLink: "https://outlook.office.com/mail/",
+      important: false,
+      hasAttachments: false,
+      read: false,
+      focused: true
+    }]
+  }
+  const merged = Model.mergeMail([view], false, 10, null, false)
+  check("carries username onto merged row", merged[0].username, "work@example.com")
 })
 
 // A mailbox that answered without its calendar is not a mailbox with an empty
