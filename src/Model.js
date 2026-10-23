@@ -243,6 +243,7 @@ function mergeMail(views, unreadOnly, limit, state, focusedOnly) {
         read: read,
         focused: mail.focused !== false,
         alias: view.alias,
+        username: view.username || "",
         short: view.short,
         color: view.color,
         // Whether this row's mailbox may be acted on, so the list can offer
@@ -798,16 +799,67 @@ function commandArgv(openCommand) {
   return text === "" ? [] : text.split(/\s+/)
 }
 
+// Whether a URL points to Microsoft Outlook/Office 365 services where
+// account hints can be supplied.
+function isMicrosoftUrl(url) {
+  if (!url || typeof url !== "string") return false
+  var match = url.match(/^https?:\/\/([^/?#]+)/i)
+  if (!match) return false
+  var host = match[1].toLowerCase()
+  return host === "outlook.office.com" ||
+         host === "outlook.office365.com" ||
+         host === "outlook.live.com" ||
+         host.endsWith(".outlook.com") ||
+         host.endsWith(".office.com") ||
+         host.endsWith(".office365.com") ||
+         host.endsWith(".live.com") ||
+         host.endsWith(".microsoft.com") ||
+         host.endsWith(".microsoftonline.com")
+}
+
+// Append login_hint to Microsoft/Outlook URLs so the browser opens the item
+// under the mailbox that actually owns it, rather than whatever account the
+// browser was last authenticated into.
+function withLoginHint(url, username) {
+  var user = String(username || "").trim()
+  if (!url || typeof url !== "string" || !user || user.indexOf("@") < 0) return url
+  if (!isMicrosoftUrl(url)) return url
+  if (/[?&]login_hint=/i.test(url)) return url
+
+  var hashIdx = url.indexOf("#")
+  var base = hashIdx >= 0 ? url.substring(0, hashIdx) : url
+  var hash = hashIdx >= 0 ? url.substring(hashIdx) : ""
+  var sep = base.indexOf("?") >= 0 ? "&" : "?"
+  return base + sep + "login_hint=" + encodeURIComponent(user) + hash
+}
+
 // Turn the configured openCommand into argv, with the URL in it.
-function openArgv(openCommand, url) {
+// Supports {url}, plus optional placeholders {username}, {email}, {account}
+// and {alias} for commands that route to browser profiles.
+function openArgv(openCommand, url, context) {
   var parts = commandArgv(openCommand)
+  var email = String((context && (context.username || context.email)) || "").trim()
+  var alias = String((context && (context.alias || context.account)) || "").trim()
+
   if (parts.length === 0) return ["xdg-open", url]
 
   var substituted = false
   for (var i = 0; i < parts.length; i++) {
     if (parts[i].indexOf("{url}") >= 0) {
-      parts[i] = parts[i].replace("{url}", url)
+      parts[i] = parts[i].split("{url}").join(url)
       substituted = true
+    }
+    if (parts[i].indexOf("{username}") >= 0) {
+      parts[i] = parts[i].split("{username}").join(email)
+    }
+    if (parts[i].indexOf("{email}") >= 0) {
+      parts[i] = parts[i].split("{email}").join(email)
+    }
+    if (parts[i].indexOf("{account}") >= 0) {
+      parts[i] = parts[i].split("{account}").join(alias)
+    }
+    if (parts[i].indexOf("{alias}") >= 0) {
+      parts[i] = parts[i].split("{alias}").join(alias)
     }
   }
   if (!substituted) parts.push(url)

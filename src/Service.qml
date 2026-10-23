@@ -226,7 +226,7 @@ Item {
   function openPreviewed() {
     if (!previewMail) return
     var link = previewDetail && previewDetail.webLink ? previewDetail.webLink : previewMail.webLink
-    openUrl(link, previewMail.alias)
+    openUrl(link, previewMail.alias, previewMail.username)
   }
 
   readonly property var filteredViews: {
@@ -488,6 +488,18 @@ Item {
     loginPollTimer.running = false
   }
 
+  function usernameFor(alias) {
+    if (!alias) return ""
+    var view = viewFor(alias)
+    if (view && view.username) return String(view.username).trim()
+    var accounts = (snapshot && snapshot.accounts) || []
+    for (var i = 0; i < accounts.length; i++) {
+      if (accounts[i].alias === alias && accounts[i].username)
+        return String(accounts[i].username).trim()
+    }
+    return ""
+  }
+
   // Opening the sign-in page with the mailbox's own browser profile is what
   // stops the browser handing back whichever account it was already signed
   // into - the page arrives already knowing who this should be.
@@ -495,7 +507,11 @@ Item {
     if (verificationUri === "") return
     var config = configFor(loginAlias)
     var command = config ? config.openCommand : ""
-    Quickshell.execDetached(Model.openArgv(command, verificationUri))
+    var username = usernameFor(loginAlias)
+    Quickshell.execDetached(Model.openArgv(command, verificationUri, {
+      username: username,
+      alias: loginAlias
+    }))
   }
 
   function signOut(alias) {
@@ -506,10 +522,16 @@ Item {
 
   // ---- actions --------------------------------------------------------
 
-  function openUrl(url, alias) {
+  function openUrl(url, alias, username) {
     if (!url) return
     var config = alias ? configFor(alias) : (accountConfigs.length > 0 ? accountConfigs[0] : null)
-    Quickshell.execDetached(Model.openArgv(config ? config.openCommand : "", String(url)))
+    var effectiveAlias = alias || (config ? config.account : "")
+    var effectiveUser = username || usernameFor(effectiveAlias)
+    var target = Model.withLoginHint(String(url), effectiveUser)
+    Quickshell.execDetached(Model.openArgv(config ? config.openCommand : "", target, {
+      username: effectiveUser,
+      alias: effectiveAlias
+    }))
   }
 
   // Opening the browser takes focus, which dismisses the popup and takes the
@@ -541,14 +563,20 @@ Item {
     if (!config) return
     var webUrl = String(config.webUrl || "https://outlook.office.com/mail/")
     var match = String(config.focusMatch || "").trim()
+    var effectiveAlias = String(config.account || alias || "")
+    var username = usernameFor(effectiveAlias)
+    var target = Model.withLoginHint(webUrl, username)
     if (match === "") {
-      openUrl(webUrl, config.account)
+      openUrl(target, effectiveAlias, username)
       return
     }
     // One string, because that is what omarchy-launch-or-focus takes - and it
     // evaluates it as shell text, so the argument boundaries have to be put
     // back in as quotes rather than lost to a plain join.
-    var launch = Model.shellCommand(Model.openArgv(config.openCommand, webUrl))
+    var launch = Model.shellCommand(Model.openArgv(config.openCommand, target, {
+      username: username,
+      alias: effectiveAlias
+    }))
     Quickshell.execDetached(["omarchy-launch-or-focus", match, launch])
   }
 
