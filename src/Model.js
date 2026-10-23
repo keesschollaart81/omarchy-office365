@@ -156,12 +156,72 @@ function unreadLabel(view) {
   return view.unreadCount > 0 ? String(view.unreadCount) + "+" : "?"
 }
 
-// The same, as a phrase for a tooltip.
-function unreadSummary(view) {
+// Which unread messages are new, as against a backlog that has been sitting
+// there.
+//
+// "New" is what the list shows: an unread message among the newest `limit`
+// rows the mailboxes returned. One from three weeks ago has newer mail stacked
+// on top of it, falls out of that window, and is backlog - which is the
+// distinction the bar needs. "Something just landed" and "something is still
+// sitting there" are different things to be told, and an indicator that lights
+// up the same way for both eventually stops meaning either.
+//
+// Built from the unfiltered merge on purpose. Turning the panel's unread
+// filter on pulls the whole backlog into view, and letting that redefine "new"
+// would light the bar up because of a filter the user set by hand. The reading
+// pane's pinned row is left out for the same reason: which message is open is
+// not news about what arrived.
+//
+// Returns {total, byAlias} - the bar tints on the one number, and a tooltip
+// naming three mailboxes needs them apart.
+function freshUnread(views, limit, state) {
+  var rows = mergeMail(views, false, limit, {
+    read: (state && state.read) || {},
+    deleted: (state && state.deleted) || {}
+  }, false)
+
+  var byAlias = {}
+  var total = 0
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].read === true) continue
+    var alias = String(rows[i].alias || "")
+    byAlias[alias] = (byAlias[alias] || 0) + 1
+    total++
+  }
+  return { total: total, byAlias: byAlias }
+}
+
+// How many of one mailbox's unread messages are new, never more than it says
+// are unread at all. Both numbers come out of the same fetch, so a new row the
+// folder count has not caught up with should not arise - but "3 new · 1
+// unread" is nonsense to print, and the clamp costs nothing. Not applied when
+// the count is only a floor, where the floor is the number in doubt.
+function freshFor(view, fresh) {
+  if (!view || !fresh) return 0
+  var byAlias = fresh.byAlias || {}
+  var count = Number(byAlias[String(view.alias)] || 0)
+  if (view.unreadKnown === false) return count
+  return Math.min(count, Number(view.unreadCount) || 0)
+}
+
+// The same, as a phrase for a tooltip: what has just arrived first, and the
+// backlog behind it second. `fresh` is optional - left out, this says only how
+// many are unread, which is all a caller without a list can honestly claim.
+function unreadSummary(view, fresh) {
   if (!view) return ""
-  if (view.unreadKnown === false)
-    return view.unreadCount > 0 ? view.unreadCount + "+ unread" : "unread count unavailable"
-  return view.unreadCount > 0 ? view.unreadCount + " unread" : "no unread mail"
+  var count = Number(view.unreadCount) || 0
+  var arrived = freshFor(view, fresh)
+
+  if (view.unreadKnown === false) {
+    if (count <= 0) return "unread count unavailable"
+    if (arrived > 0) return arrived + " new · " + count + "+ unread"
+    return count + "+ unread"
+  }
+  if (count <= 0) return "no unread mail"
+  // Nothing behind them: a second number here would add a figure and no fact.
+  if (arrived >= count) return count + " new"
+  if (arrived > 0) return arrived + " new · " + count + " unread"
+  return count + " unread"
 }
 
 // Everything that went wrong inside a mailbox that otherwise answered: a

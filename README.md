@@ -89,7 +89,7 @@ Widget-level keys:
 | `dayEnd` | `22:00` | Bottom of the grid. |
 | `showWeekends` | `true` | Draw Saturday and Sunday in the grid. |
 | `refreshIntervalSec` | `180` | How often to poll Microsoft Graph (60–3600). |
-| `tintOnUnread` | `true` | Highlight the bar icon while unread mail is waiting. When the mailbox will not say how many are unread, the panel shows `3+` rather than `3`, and `?` rather than claiming none. |
+| `tintOnUnread` | `true` | Highlight the bar icon while **new** mail is waiting - unread mail that is in the list, meaning among the newest `mails` messages. An unread message further down the mailbox is backlog and leaves the icon plain, so the tint keeps meaning "something arrived" instead of settling in permanently on an inbox nobody empties. The tooltip and the panel header say both numbers: `2 new · 14 unread`. When the mailbox will not say how many are unread, the panel shows `3+` rather than `3`, and `?` rather than claiming none. |
 | `previewLine` | `true` | Show a line of the message body under each subject. Off gives a two-line row. |
 | `focusedByDefault` | `false` | Open with the Focused filter already on, hiding Outlook's Other mail. |
 | `unreadByDefault` | `false` | Open with the Unread filter already on, for a widget you keep as an inbox rather than a record of everything that arrived. |

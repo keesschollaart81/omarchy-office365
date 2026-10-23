@@ -356,6 +356,89 @@ group("how many are unread", () => {
         Model.unreadLabel({ unreadCount: 2 }), "2")
 })
 
+// A bar that lights up for an unread message from three weeks ago is a bar
+// that is always lit, and one that is always lit says nothing when mail
+// actually arrives. So "new" is what the list shows, and the backlog behind it
+// is counted separately.
+group("new mail against the backlog", () => {
+  // Newest first, and dated so the cut falls where the test wants it.
+  const msg = (id, day, read) => ({
+    id: id, subject: "re: " + id, from: "someone", fromAddress: "a@b.c",
+    received: `2026-08-${String(day).padStart(2, "0")}T09:00:00Z`,
+    preview: "", webLink: "", important: false, hasAttachments: false,
+    read: read, focused: true
+  })
+  const box = (alias, mail, unread, known) => ({
+    alias: alias, short: alias.toUpperCase(), color: "#fff", ok: true,
+    mail: mail, unreadCount: unread, unreadKnown: known !== false, write: true,
+    events: [], folders: [], warnings: []
+  })
+
+  // Three newer messages sit on top of the unread one from the 1st, so with a
+  // list of three it is out of view: backlog, not news.
+  const buried = [box("work", [
+    msg("d4", 4, true), msg("d3", 3, true), msg("d2", 2, true), msg("old", 1, false)
+  ], 1)]
+  check("an unread message the list cannot reach is not new",
+        Model.freshUnread(buried, 3, {}).total, 0)
+  check("and the bar phrase says only that it is unread",
+        Model.unreadSummary(buried[0], Model.freshUnread(buried, 3, {})), "1 unread")
+
+  // The same mailbox, one message having just landed unread.
+  const arrived = [box("work", [
+    msg("new", 5, false), msg("d4", 4, true), msg("d3", 3, true), msg("old", 1, false)
+  ], 2)]
+  const fresh = Model.freshUnread(arrived, 3, {})
+  check("what is in the list is", fresh.total, 1)
+  check("with the backlog kept apart from it",
+        Model.unreadSummary(arrived[0], fresh), "1 new · 2 unread")
+
+  // Nothing behind them: two numbers where one is the whole story.
+  const allNew = [box("work", [msg("a", 5, false), msg("b", 4, false)], 2)]
+  check("no backlog, so no second number",
+        Model.unreadSummary(allNew[0], Model.freshUnread(allNew, 3, {})), "2 new")
+
+  // A floor is still a floor, and the new count does not make it a count.
+  const floored = [box("work", [msg("a", 5, false)], 1, false)]
+  check("a floor stays marked as one",
+        Model.unreadSummary(floored[0], Model.freshUnread(floored, 3, {})), "1 new · 1+ unread")
+
+  // Marking it read is the point of marking it read: the tint has to go out
+  // before the server agrees, or the bar argues with the panel for a round.
+  check("an optimistic read drops it at once",
+        Model.freshUnread(arrived, 3, { read: { "new": true } }).total, 0)
+  check("as does deleting it",
+        Model.freshUnread(allNew, 3, { deleted: { "a": true } }).total, 1)
+  // Taking a row out makes room, and the backlog message that slides up into
+  // the list is new by this definition. That is the definition working rather
+  // than failing: it is in the list now, so opening the panel shows what the
+  // lit icon is about.
+  check("and the backlog slides up into the room it left",
+        Model.freshUnread(arrived, 3, { deleted: { "new": true } }).total, 1)
+
+  // Each mailbox on its own, because the tooltip names them one per line.
+  const both = [
+    box("work", [msg("w1", 5, false)], 4),
+    box("home", [msg("h1", 4, true), msg("h2", 3, true)], 0)
+  ]
+  const split = Model.freshUnread(both, 5, {})
+  check("counted per mailbox", [split.total, split.byAlias.work, split.byAlias.home || 0], [1, 1, 0])
+  check("and one mailbox's news is not the other's",
+        [Model.unreadSummary(both[0], split), Model.unreadSummary(both[1], split)],
+        ["1 new · 4 unread", "no unread mail"])
+
+  // The panel's own filters must not be able to redefine what arrived.
+  // Filtering to unread pulls the backlog into view; the bar must not read
+  // that as four things landing at once.
+  const filtered = Model.mergeMail(buried, true, 3, {}, false)
+  check("the unread filter does show the backlog", filtered.map((r) => r.id), ["old"])
+  check("but it is still not new", Model.freshUnread(buried, 3, {}).total, 0)
+
+  // Without a fresh count there is no claim to make about it, and the phrase
+  // falls back to what it always said.
+  check("no list, no claim", Model.unreadSummary(box("work", [], 7)), "7 unread")
+})
+
 group("the list view still works", () => {
   const merged = Model.mergeEvents([view("w", "W", "#fff", [
     ev("done", 0, [9, 0], [10, 0]),

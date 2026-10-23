@@ -307,6 +307,18 @@ Item {
     for (var i = 0; i < views.length; i++) total += views[i].unreadCount
     return total
   }
+  // Of that, how much is actually in the list - mail that has just arrived, as
+  // against a backlog sitting further down the mailbox. The bar tints on this
+  // rather than on unreadCount: one old unread message nobody intends to open
+  // would otherwise keep the icon lit for good, and an icon that never goes
+  // out cannot tell you that something came in.
+  //
+  // Every mailbox rather than filteredViews, and mailState rather than
+  // listState, for the same reason: the alias filter and the reading pane are
+  // ways of looking at the panel, and neither should change what the bar says
+  // is waiting.
+  readonly property var freshUnread: Model.freshUnread(views, mails, mailState)
+  readonly property int newUnreadCount: freshUnread.total
   readonly property int shownMailCount: mail.length
   readonly property bool anySignedIn: {
     for (var i = 0; i < views.length; i++) if (views[i].ok) return true

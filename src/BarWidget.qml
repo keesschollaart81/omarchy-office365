@@ -95,8 +95,11 @@ BarWidget {
     text: Model.plainText(root.barLabel !== "" ? root.barLabel : root.barIcon)
     // A text label needs more room than a glyph does.
     slotSize: root.barLabel !== "" ? Style.bar.statusSlot * 2 : Style.bar.iconSlot
-    // Colour, not a count: the panel is where the numbers live.
-    active: root.tintOnUnread && service.unreadCount > 0
+    // Colour, not a count: the panel is where the numbers live. And only for
+    // mail that is in the list - a backlog further down the mailbox leaves the
+    // icon plain, so a tint keeps meaning "something arrived" rather than
+    // fading into the permanent state of an inbox nobody empties.
+    active: root.tintOnUnread && service.newUnreadCount > 0
     // One line per mailbox, so a combined widget says what it is holding
     // without opening the panel.
     tooltipText: {
@@ -109,7 +112,7 @@ BarWidget {
         var who = Model.plainText(view.username !== "" ? view.username : view.alias)
         if (view.busy) lines.push(who + ": signed in, loading…")
         else if (!view.loaded) lines.push(who + ": loading…")
-        else if (view.ok) lines.push(who + " · " + Model.unreadSummary(view))
+        else if (view.ok) lines.push(who + " · " + Model.unreadSummary(view, service.freshUnread))
         else if (view.errorCode === "auth_required") lines.push(who + ": sign in")
         else lines.push(who + ": " + Model.plainText(view.errorMessage))
       }

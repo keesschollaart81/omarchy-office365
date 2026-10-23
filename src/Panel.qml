@@ -294,7 +294,7 @@ Panel {
                 var view = root.views[0]
                 var parts = []
                 if (view.username !== "" && view.username !== root.service.primaryTitle) parts.push(view.username)
-                if (view.ok) parts.push(Model.unreadSummary(view))
+                if (view.ok) parts.push(Model.unreadSummary(view, root.service.freshUnread))
                 return parts.join(" · ")
               }
               color: root.dim
