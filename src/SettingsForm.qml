@@ -949,12 +949,15 @@ Item {
     // A Repeater rather than one reused page: each mailbox owns its own text
     // fields, so moving between mailboxes cannot leave the previous one's
     // typing behind in a field whose binding was broken by editing it.
+    // Keyed on the count, not the array: rows is replaced on every keystroke,
+    // and a Repeater over it would rebuild the page - and the field being
+    // typed in - after each character.
     Repeater {
-      model: root.rows
+      model: root.rows.length
 
       Column {
         id: page
-        required property var modelData
+        readonly property var modelData: root.rows[index] || ({})
         required property int index
         width: parent.width
         spacing: Style.spacing.xxl
